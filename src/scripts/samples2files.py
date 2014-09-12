@@ -17,20 +17,118 @@
 ################################################################################
 # This tool was adapted with permission from Mayank Tyagi <mtyagi@illumina.com>
 ################################################################################
+from __future__ import print_function
 
-import os, sys
-from optparse import OptionParser, OptionGroup
-from urllib2 import Request, urlopen, URLError
+
+import argparse
+import os
+import sys
+
 from BaseSpacePy.api.BaseSpaceAPI import BaseSpaceAPI
-from BaseSpacePy.model.QueryParameters import QueryParameters as qp
-import logging
+from BaseSpacePy.model.QueryParameters import QueryParameters
+from ConfigParser import ConfigParser
+from urllib2 import Request, urlopen, URLError
 
-class Samples:
-    
-    logging.basicConfig()
 
-    @staticmethod
-    def __get_files_to_download(myAPI, projectId, sampleId, sampleName, sampleLimit=1024, sampleFileLmit=1024):
+
+def download_basespace_files(config_file_path=None, client_key=None, client_secret=None, access_token=None,
+                             project_id_list=None, project_name_list=None, sample_id_list=None, sample_name_list=None,
+                             dry_run=False, output_directory=None, recreate_basespace_dir_tree=True):
+
+    if not project_id_list: project_id_list = []
+    if not project_name_list: project_name_list = []
+    if not sample_id_list: sample_id_list = []
+    if not sample_name_list: sample_name_list = []
+    #if not (sample_id_list or sample_name_list or project_id_list or project_name_list):
+    #    print("One of the query options (sample/project) must be specified.", file=sys.stderr)
+    #    sys.exit(1)
+
+    config_dict = {}
+    if config_file_path:
+        config_parser = ConfigParser()
+        config_parser.read(config_file_path)
+        config_dict = config_parser._defaults
+        if not client_key: client_key = config_dict.get('clientkey')
+        if not client_secret: client_secret = config_dict.get('clientsecret')
+        if not access_token: access_token = config_dict.get('accesstoken')
+    if not (client_key and client_secret and access_token):
+        missing_params = []
+        if not client_key: missing_params.append("client_key")
+        if not client_secret: missing_params.append("client_secret")
+        if not access_token: missing_params.append("access_token")
+        print('Required parameters not supplied either in config file ({}) '
+              ' or via arguments: {}'.format(",".join(missing_params)), file=sys.stderr)
+        sys.exit(1)
+
+    app_session_id = config_dict.get("appSessionId") or ""
+    api_server = config_dict.get("apiServer") or "https://api.cloud-hoth.illumina.com"
+    api_version = config_dict.get("apiVersion") or "v1pre3"
+    # Why these limits? Should inform the user
+    project_limit = 100
+    sample_limit = 1024
+    sample_file_limit = 1024
+
+
+    import ipdb; ipdb.set_trace()
+    myAPI = BaseSpaceAPI(client_key, client_secret, api_server, api_version, app_session_id, access_token)
+    user = myAPI.getUserById('current')
+
+    ## Is there an API call for this?
+    # Convert names -> ids
+    if project_name_list:
+        remote_basespace_projects = myAPI.getProjectByUser()
+        for remote_project in remote_basespace_projects:
+            import ipdb; ipdb.set_trace()
+            # How does this API work?
+            # If the name of the project matches the user-supplied name, append to project_id_list
+            pass
+    # Same deal here
+    for sample_name in sample_name_list:
+        pass
+
+
+    if not project_id_list:
+        # Get all projects
+        project_id_list = myAPI.getProjectByUser()
+        import ipdb; ipdb.set_trace()
+
+    files_to_download = []
+    for project_id in project_id_list:
+        # Get the list of files to download & append
+        pass
+
+    for i, fastq in enumerate(files_to_download):
+        print("Downloading file {}/{}: {}".format(i, len(files_to_download), fastq))
+        import ipdb; ipdb.set_trace()
+
+
+
+
+def garbage():
+    filesToDownload = []
+    if None != projectId:
+        filesToDownload = Samples.__get_files_to_download(myAPI, projectId, sampleId, sampleName, sampleLimit, sampleFileLimit)
+    else:
+        myProjects = myAPI.getProjectByUser(qp({'Limit' : projectLimit}))
+        for project in myProjects:
+            projectId = project.Id
+            if None != projectName and project.Name != projectName:
+                continue
+            filesToDownload = Samples.__get_files_to_download(myAPI, projectId, sampleId, sampleName, sampleLimit, sampleFileLimit)
+            if 0 < len(filesToDownload):
+                break
+    print("Will download {} files.".format(len(filesToDownload)))
+    # FIXME
+    for i in range(len(filesToDownload)):
+        sampleFile = filesToDownload[i]
+        print('Downloading ({}{}): {}'.format(((i+1), len(filesToDownload), str(sampleFile))))
+        print("File Path: {}".format(sampleFile.Path))
+        if not options.dryRun:
+            sampleFile.downloadFile(myAPI, outputDirectory, createBsDir=createBsDir)
+    print("Download complete.")
+
+
+def get_list_of_files_to_download(myAPI, projectId, sampleId, sampleName, sampleLimit=1024, sampleFileLmit=1024):
         filesToDownload = []
         samples = myAPI.getSamplesByProject(Id=projectId, queryPars=qp({'Limit' : sampleLimit}))
         for sample in samples:
@@ -42,6 +140,59 @@ class Samples:
             for sampleFile in sampleFiles:
                 filesToDownload.append(sampleFile)
         return filesToDownload
+
+
+def safe_makedir(dname, mode=0777):
+    """Make a directory (tree) if it doesn't exist, handling concurrent race
+    conditions.
+    """
+    if not os.path.exists(dname):
+        # we could get an error here if multiple processes are creating
+        # the directory at the same time. Grr, concurrency.
+        try:
+            os.makedirs(dname, mode=mode)
+        except OSError:
+            if not os.path.isdir(dname):
+                raise
+    return dname
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser("Navigate the byzantine corridors of Basespace and download your files to win")
+
+    cred_group = parser.add_argument_group("Credential options (can also be specified via '-c', configuration file)")
+    cred_group.add_argument('-c', '--config', dest="config_file_path", default=os.path.expandvars('$HOME/.basespace.cfg'),
+                        help='the path to the configuration file (default $HOME/.basespace.cfg)')
+    cred_group.add_argument('-K', '--client-key', help='the developer.basespace.illumina.com client key')
+    cred_group.add_argument('-S', '--client-secret', help='the developer.basespace.illumina.com client token')
+    cred_group.add_argument('-A', '--access-token', help='the developer.basespace.illumina.com access token')
+
+    query_group = parser.add_argument_group("Query arguments")
+    query_group.add_argument('-s', '--sample-id', action="append", dest="sample_id_list",
+            help='the sample identifier (optional); specify multiple times for multiple samples')
+    query_group.add_argument('-x', '--sample-name', action="append", dest="sample_name_list",
+            help='the sample name (optional); specify multiple times for multiple samples')
+    query_group.add_argument('-p', '--project-id', action="append", dest="project_id_list",
+            help='the project identifier (optional); specify multiple times for multiple projects')
+    query_group.add_argument('-y', '--project-name', action="append", dest="project_name_list",
+            help='the project name (optional); specify multiple times for multiple projects')
+
+    misc_group = parser.add_argument_group("Miscellaneous arguments")
+    misc_group.add_argument('-d', '--dry-run', action='store_true', help='dry run; don\'t download any files')
+    misc_group.add_argument('-o', '--output-directory',  default=os.getcwd(), help='the directory in which to store the files')
+    misc_group.add_argument('-b', '--recreate-basespace-dir-tree', action="store_false",
+                     help='recreate the basespace directory structure in the output directory')
+
+    args = vars(parser.parse_args())
+    download_basespace_files(**args)
+
+
+
+
+class Samples:
+    
+    logging.basicConfig()
+
+    @staticmethod
 
     @staticmethod
     def download(clientKey=None, clientSecret=None, accessToken=None, sampleId=None, projectId=None, sampleName=None, projectName=None, outputDirectory='\.', createBsDir=True):
@@ -85,81 +236,3 @@ class Samples:
 
         # get the current user
         user = myAPI.getUserById('current')
-
-        filesToDownload = []
-        if None != projectId:
-            filesToDownload = Samples.__get_files_to_download(myAPI, projectId, sampleId, sampleName, sampleLimit, sampleFileLimit)
-        else:
-            myProjects = myAPI.getProjectByUser(qp({'Limit' : projectLimit}))
-            for project in myProjects:
-                projectId = project.Id
-                if None != projectName and project.Name != projectName:
-                    continue
-                filesToDownload = Samples.__get_files_to_download(myAPI, projectId, sampleId, sampleName, sampleLimit, sampleFileLimit)
-                if 0 < len(filesToDownload):
-                    break
-        print "Will download %d files." % len(filesToDownload)
-        for i in range(len(filesToDownload)):
-            sampleFile = filesToDownload[i]
-            print 'Downloading (%d/%d): %s' % ((i+1), len(filesToDownload), str(sampleFile))
-            print "File Path: %s" % sampleFile.Path
-            if not options.dryRun:
-                sampleFile.downloadFile(myAPI, outputDirectory, createBsDir=createBsDir)
-        print "Download complete."
-
-if __name__ == '__main__':
-
-    def check_option(parser, value, name):
-        if None == value:
-            print 'Option ' + name + ' required.\n'
-            parser.print_help()
-            sys.exit(1)
-    
-    parser = OptionParser()
-
-    group = OptionGroup(parser, "Credential options")
-    group.add_option('-K', '--client-key', help='the developer.basespace.illumina.com client key', dest='clientKey', default=None)
-    group.add_option('-S', '--client-secret', help='the developer.basespace.illumina.com client token', dest='clientSecret', default=None)
-    group.add_option('-A', '--access-token', help='the developer.basespace.illumina.com access token', dest='accessToken', default=None)
-    parser.add_option_group(group)
-
-    group = OptionGroup(parser, "Query options")
-    group.add_option('-s', '--sample-id', help='the sample identifier (optional)', dest='sampleId', default=None)
-    group.add_option('-x', '--sample-name', help='the sample name (optional)', dest='sampleName', default=None)
-    group.add_option('-p', '--project-id', help='the project identifier (optional)', dest='projectId', default=None)
-    group.add_option('-y', '--project-name', help='the project name (optional)', dest='projectName', default=None)
-    parser.add_option_group(group)
-    
-    group = OptionGroup(parser, "Miscellaneous options")
-    group.add_option('-d', '--dry-run', help='dry run; do not download the files', dest='dryRun', action='store_true', default=False)
-    group.add_option('-o', '--output-directory', help='the output directory', dest='outputDirectory', default='./')
-    group.add_option('-b', '--create-basespace-directory-structure', help='recreate the basespace directory structure in the output directory', \
-            dest='createBsDir', action='store_false', default=True)
-    parser.add_option_group(group)
-    
-    if len(sys.argv[1:]) < 1:
-        parser.print_help()
-        sys.exit(1)
-
-    options, args = parser.parse_args()
-    if None != options.clientKey:
-        #check_option(parser, options.clientKey, '-K')
-        check_option(parser, options.clientSecret, '-S')
-        check_option(parser, options.accessToken, '-A')
-    if None == options.projectId and None == options.sampleId and None == options.projectName and None == options.sampleName:
-        print 'One of the query options must be given.\n'
-        parser.print_help()
-        sys.exit(1)
-    if None != options.sampleId and None != options.sampleName:
-        print 'Both -s or -y may not be given together.\n'
-        parser.print_help()
-        sys.exit(1)
-    if None != options.projectId and None != options.projectName:
-        print 'Both -p or -x may not be given together.\n'
-        parser.print_help()
-        sys.exit(1)
-
-    Samples.download(options.clientKey, options.clientSecret, options.accessToken, \
-            sampleId=options.sampleId, projectId=options.projectId, \
-            sampleName=options.sampleName, projectName=options.projectName, \
-            outputDirectory=options.outputDirectory, createBsDir=options.createBsDir)
