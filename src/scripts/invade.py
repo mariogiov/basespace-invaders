@@ -68,8 +68,9 @@ def download_basespace_files(config_file_path=None, client_key=None, client_secr
         if not client_key: missing_params.append("client_key")
         if not client_secret: missing_params.append("client_secret")
         if not access_token: missing_params.append("access_token")
-        print_stderr('Required parameters not supplied either in config file ({}) '
-                     'or via arguments: {}'.format(",".join(missing_params)))
+        print_stderr('Error: Required parameters not supplied either in config '
+                     'file ({}) or via arguments.'.format(config_file_path,
+                                                          ', '.join(missing_params)))
         sys.exit(1)
     app_session_id = config_dict.get("appsessionid") or ""
     api_server = config_dict.get("apiserver") or "https://api.basespace.illumina.com"
