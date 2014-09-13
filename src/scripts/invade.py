@@ -16,6 +16,7 @@
 
 ################################################################################
 # This tool was adapted with permission from Mayank Tyagi <mtyagi@illumina.com>
+# and subsequently updated by Mario Giovacchini https://github.com/mariogiov
 ################################################################################
 from __future__ import print_function
 
@@ -32,16 +33,16 @@ from functools import partial
 
 
 ## TODO use QueryParameters to filter?
-## TODO abstract the find-obj-by-name/id to its own function
 ## TODO let user pick Run, File by name/id
 ## TODO fix logic: if user specifies both project and sample, we should search each independently
 ## TODO Implement separate script for listing project trees
 ## TODO Consider implementing separate download_basespace_<type> fns for projects, samples, etc.
 
+print_stderr = partial(print, file=sys.stderr)
+
 def download_basespace_files(config_file_path=None, client_key=None, client_secret=None, access_token=None,
                              project_id_list=None, project_name_list=None, sample_id_list=None, sample_name_list=None,
                              dry_run=False, output_directory=None, recreate_basespace_dir_tree=True):
-    print_stderr = partial(print, file=sys.stderr)
     # Check input parameters / load from config file / defaults
     if not project_id_list: project_id_list = []
     if not project_name_list: project_name_list = []
@@ -77,57 +78,63 @@ def download_basespace_files(config_file_path=None, client_key=None, client_secr
     myAPI = BaseSpaceAPI(clientKey=client_key, clientSecret=client_secret,
                          apiServer=api_server, version=api_version,
                          appSessionId=app_session_id, AccessToken=access_token)
+
     basespace_projects = myAPI.getProjectByUser()
     user = myAPI.getUserById('current')
     # If user specified projects, get them by name or id
     project_objects = []
     if project_name_list:
-        basespace_projects_name_dict = { p.Name: p for p in basespace_projects }
-        for project_name in project_name_list:
-            try:
-                project_objects.append(basespace_projects_name_dict[project_name])
-            except KeyError:
-                print_stderr('Warning: user-specified project name "{}" not '
-                             'found in projects for user "{}"'.format(project_name, user))
+        project_objects.extend(_select_from_object(filter_list=project_name_list,
+                                                   search_list=basespace_projects,
+                                                   key_attr="Name",
+                                                   obj_type="project",
+                                                   user=user))
     if project_id_list:
-        basespace_projects_id_dict = { p.Id: p for p in basespace_projects }
+        digit_pattern = re.compile(r'^\d+$')
         for project_id in project_id_list:
-            try:
-                project_objects.append(basespace_projects_id_dict[project_id])
-            except KeyError:
-                print_stderr('Warning: user-specified project id "{}" not '
-                             'found in projects for user "{}"'.format(project_id, user))
+            if not digit_pattern.match(project_id):
+                print_stderr('Error: Invalid format for user-specified project id '
+                             '"{}": project ids are strictly numeric. Did you mean '
+                             'to pass this as a project name?'.format(project_id))
+                continue
+        project_filtered_id_list = filter(digit_pattern.match, project_id_list)
+        project_objects.extend(_select_from_object(filter_list=project_filtered_id_list,
+                                                   search_list=basespace_projects,
+                                                   key_attr="Id",
+                                                   obj_type="project",
+                                                   user=user))
     if not (project_name_list or project_id_list):
         # Get all projects if none are specified by user
         project_objects = basespace_projects
-    basespace_sample_objects = []
+
+    basespace_samples = []
     for project_obj in project_objects:
-        basespace_sample_objects.extend(project_obj.getSamples(myAPI))
+        basespace_samples.extend(project_obj.getSamples(myAPI))
     sample_objects = []
     if sample_name_list:
-        basespace_sample_name_dict = { s.Name: s for s in basespace_sample_objects }
-        for sample_name in sample_name_list:
-            try:
-                sample_objects.append(basespace_sample_name_dict[sample_name])
-            except KeyError:
-                print_stderr('Warning: user-specified sample name "{}" not '
-                             'found in samples for user "{}"'.format(sample_name, user))
+        sample_objects.extend(_select_from_object(filter_list=sample_name_list,
+                                                  search_list=basespace_samples,
+                                                  key_attr="Name",
+                                                  obj_type="sample",
+                                                  user=user))
     if sample_id_list:
-        basespace_sample_id_dict = { s.Id: s for s in basespace_sample_objects }
+        digit_pattern = re.compile(r'^\d+$')
         for sample_id in sample_id_list:
-            if not re.match(r'^\d+$', sample_id):
+            if not digit_pattern.match(sample_id):
                 print_stderr('Error: Invalid format for user-specified sample id '
                              '"{}": sample ids are strictly numeric. Did you mean '
                              'to pass this as a sample name?'.format(sample_id))
                 continue
-            try:
-                sample_objects.append(basespace_sample_id_dict[sample_id])
-            except KeyError:
-                print_stderr('Warning: user-specified sample id "{}" not '
-                             'found in samples for user "{}"'.format(sample_id, user))
+        sample_filtered_id_list = filter(digit_pattern.match, sample_id_list)
+        sample_objects.extend(_select_from_object(filter_list=sample_filtered_id_list,
+                                                  search_list=basespace_samples,
+                                                  key_attr="Id",
+                                                  obj_type="sample",
+                                                  user=user))
     if not (sample_name_list or sample_id_list):
         # Get all samples if none are specified by user
-        sample_objects = basespace_sample_objects
+        sample_objects = basespace_samples
+
     files_to_download = []
     for sample_obj in sample_objects:
         files_to_download.extend(sample_obj.getFiles(myAPI))
@@ -150,6 +157,23 @@ def download_basespace_files(config_file_path=None, client_key=None, client_secr
         print_stderr('Download completed; files are located in "{}"'.format(output_directory))
     else:
         print_stderr("Error: no files found to download.")
+
+
+def _select_from_object(filter_list, search_list, key_attr, obj_type=None, user=None):
+    object_attr_list = []
+    object_attr_dict = { getattr(obj,key_attr): obj for obj in search_list }
+    if not obj_type: obj_type = type(search_list[0])
+    user_string = 'for user "{}"'.format(user) if user else ""
+    for search_value in filter_list:
+        try:
+            object_attr_list.append(object_attr_dict[search_value])
+        except KeyError:
+            print_stderr('Warning: user-specified {obj_type} {key_attr} "{user_value}" '
+                         'not found in {obj_type}s {user_string}'.format(obj_type=obj_type,
+                                                                         key_attr=key_attr.lower(),
+                                                                         user_value=search_value,
+                                                                         user_string=user_string))
+    return object_attr_list
 
 
 def safe_makedir(dname, mode=0777):
