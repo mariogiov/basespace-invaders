@@ -69,7 +69,7 @@ def download_basespace_files(config_file_path=None, client_key=None, client_secr
         if not client_secret: missing_params.append("client_secret")
         if not access_token: missing_params.append("access_token")
         print_stderr('Required parameters not supplied either in config file ({}) '
-              ' or via arguments: {}'.format(",".join(missing_params)))
+                     'or via arguments: {}'.format(",".join(missing_params)))
         sys.exit(1)
     app_session_id = config_dict.get("appsessionid") or ""
     api_server = config_dict.get("apiserver") or "https://api.basespace.illumina.com"
@@ -91,13 +91,14 @@ def download_basespace_files(config_file_path=None, client_key=None, client_secr
                                                    user=user))
     if project_id_list:
         digit_pattern = re.compile(r'^\d+$')
+        project_filtered_id_list = []
         for project_id in project_id_list:
             if not digit_pattern.match(project_id):
                 print_stderr('Error: Invalid format for user-specified project id '
                              '"{}": project ids are strictly numeric. Did you mean '
                              'to pass this as a project name?'.format(project_id))
-                continue
-        project_filtered_id_list = filter(digit_pattern.match, project_id_list)
+            else:
+                project_filtered_id_list.append(project_id)
         project_objects.extend(_select_from_object(filter_list=project_filtered_id_list,
                                                    search_list=basespace_projects,
                                                    key_attr="Id",
@@ -119,13 +120,14 @@ def download_basespace_files(config_file_path=None, client_key=None, client_secr
                                                   user=user))
     if sample_id_list:
         digit_pattern = re.compile(r'^\d+$')
+        sample_filtered_id_list = []
         for sample_id in sample_id_list:
             if not digit_pattern.match(sample_id):
                 print_stderr('Error: Invalid format for user-specified sample id '
                              '"{}": sample ids are strictly numeric. Did you mean '
                              'to pass this as a sample name?'.format(sample_id))
-                continue
-        sample_filtered_id_list = filter(digit_pattern.match, sample_id_list)
+            else:
+                sample_filtered_id_list.append(sample_id)
         sample_objects.extend(_select_from_object(filter_list=sample_filtered_id_list,
                                                   search_list=basespace_samples,
                                                   key_attr="Id",
