@@ -51,7 +51,7 @@ apiVersion = v1pre3
 You can put in '' for appSessionId if you do not have one.
 
 ## Get sample files
-The <code>samples2files.py</code> script downloads 
+The <code>download_files.py</code> script downloads 
 the sample-level files from BaseSpace.  The user can specify project Id, 
 project name, sample Id, and sample Name.  Project Id and project name should 
 not be specified together; similarly sample Id and sample name should not be 
