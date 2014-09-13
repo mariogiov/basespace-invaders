@@ -1,7 +1,7 @@
 # BaseSpace Invaders
 
 This contains a collection of scripts (one for now!) that I found useful to 
-retrieve files from Illumina's BaseSpace.  Please run a script with no options 
+retrieve files from Illumina's BaseSpace.  Please run a script with --help
 to see its usage.
 
             _ __                    ##          ##             _ __
