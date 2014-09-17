@@ -27,14 +27,13 @@ import re
 import sys
 
 from BaseSpacePy.api.BaseSpaceAPI import BaseSpaceAPI
-from BaseSpacePy.model.QueryParameters import QueryParameters
+from BaseSpacePy.model.QueryParameters import QueryParameters as qp
 from ConfigParser import ConfigParser
 from functools import partial
 
 
 ## TODO use QueryParameters to filter?
 ## TODO let user pick Run, File by name/id
-## TODO fix logic: if user specifies both project and sample, we should search each independently
 ## TODO Implement separate script for listing project trees
 ## TODO Consider implementing separate download_basespace_<type> fns for projects, samples, etc.
 
@@ -79,8 +78,7 @@ def download_basespace_files(config_file_path=None, client_key=None, client_secr
     myAPI = BaseSpaceAPI(clientKey=client_key, clientSecret=client_secret,
                          apiServer=api_server, version=api_version,
                          appSessionId=app_session_id, AccessToken=access_token)
-
-    basespace_projects = myAPI.getProjectByUser()
+    basespace_projects = myAPI.getProjectByUser(qp({'Limit' : 1024}))
     user = myAPI.getUserById('current')
     # If user specified projects, get them by name or id
     project_objects = []
@@ -196,8 +194,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser("Navigate the byzantine corridors of Basespace and download your files to win")
 
     cred_group = parser.add_argument_group("Credential options (note that specifying these via '-K', '-S', and '-A' is not secure;\n\t\t    you are recommended to pass a configuration file with '-c')")
-    cred_group.add_argument('-c', '--config', dest="config_file_path", default=os.path.expandvars('$HOME/.basespace.cfg'),
-                        help='the path to the configuration file (default $HOME/.basespace.cfg)')
+    cred_group.add_argument('-c', '--config', dest="config_file_path", default=os.path.expandvars('$HOME/.basespacepy.cfg'),
+                        help='the path to the configuration file (default $HOME/.basespacepy.cfg)')
     cred_group.add_argument('-K', '--client-key', help='the developer.basespace.illumina.com client key')
     cred_group.add_argument('-S', '--client-secret', help='the developer.basespace.illumina.com client token')
     cred_group.add_argument('-A', '--access-token', help='the developer.basespace.illumina.com access token')
