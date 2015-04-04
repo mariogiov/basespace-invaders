@@ -35,7 +35,7 @@ Access Token".
 
 You will need to provide the credentials for your app either via the command 
 line (security risk) or with a master config file (preferred).
-To create a master config file, create a file named ~/.basespace.cfg with the following content,
+To create a master config file, create a file named ~/.basespacepy.cfg with the following content,
 filling in the clientKey, clientSecret, and accessToken (optionally appSessionId):
 <pre language="bash">
 <code>[DEFAULT]
@@ -44,7 +44,7 @@ clientKey =
 clientSecret = 
 accessToken = 
 appSessionId =
-apiServer = https://api.cloud-hoth.illumina.com/
+apiServer = https://api.basespace.illumina.com/
 apiVersion = v1pre3
 </pre>
 </code>
