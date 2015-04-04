@@ -18,6 +18,7 @@ to see its usage.
 ### Python BaseSpace SDK
 Please download and install the 
 [python basespace sdk](http://github.com/basespace/basespace-python-sdk).
+It is recommended to use a virtual environment for this (e.g. via [conda](http://continuum.io/downloads#all).
 
 ### Illumina's BaseSpace Developer Credentials
 
